@@ -1,0 +1,16 @@
+{
+    "id": "1cab7a27-0631-43a6-8e25-4e00f0a62913",
+    "name": "Inline Molang Extension",
+    "version": "1.0.0",
+    "author": "Kirby",
+    "description": "Allows the usage of Molang folders",
+    "tags": [
+        "Compiler"
+    ],
+    "target": "v2",
+    "compiler": {
+        "plugins": {
+            "inline-molang": "src/index.js"
+        }
+    }
+}
