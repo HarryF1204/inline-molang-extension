@@ -44,6 +44,88 @@ export default function inlineMolangPathsPlugin(context = {}) {
             .filter((line) => line.length > 0)
             .join(" ");
 
+    const stripJsonStyleComments = (input) => {
+        const text = String(input);
+        let out = "";
+
+        let inString = false;
+        let stringQuote = "";
+        let escaped = false;
+
+        let inLineComment = false;
+        let inBlockComment = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+
+            if (inLineComment) {
+                if (ch === "\n") {
+                    inLineComment = false;
+                    out += ch;
+                }
+                continue;
+            }
+
+            if (inBlockComment) {
+                if (ch === "*" && next === "/") {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+
+            if (inString) {
+                out += ch;
+
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+
+                if (ch === "\\") {
+                    escaped = true;
+                    continue;
+                }
+
+                if (ch === stringQuote) {
+                    inString = false;
+                    stringQuote = "";
+                }
+
+                continue;
+            }
+
+            if (ch === '"' || ch === "'") {
+                inString = true;
+                stringQuote = ch;
+                out += ch;
+                continue;
+            }
+
+            if (ch === "/" && next === "/") {
+                inLineComment = true;
+                i++;
+                continue;
+            }
+
+            if (ch === "/" && next === "*") {
+                inBlockComment = true;
+                i++;
+                continue;
+            }
+
+            out += ch;
+        }
+
+        return out;
+    };
+
+    const parseJsonLike = (text) => {
+        const stripped = stripJsonStyleComments(text);
+        return JSON.parse(stripped);
+    };
+
     const behaviorPackRoot = projectConfig?.data?.packs?.behaviorPack
         ? stripLeadingProjectRoot(stripLeadingDotSlash(projectConfig.data.packs.behaviorPack))
         : null;
@@ -184,7 +266,7 @@ export default function inlineMolangPathsPlugin(context = {}) {
             return undefined;
         }
 
-        return toSingleLine(raw);
+        return toSingleLine(stripJsonStyleComments(raw));
     };
 
     const inlineMolangPathsDeep = async (value, filePath) => {
@@ -264,13 +346,16 @@ export default function inlineMolangPathsPlugin(context = {}) {
             if (fileContent == null) return;
 
             if (isMolangFile(filePath)) {
-                return toSingleLine(fileContent);
+                return toSingleLine(stripJsonStyleComments(fileContent));
             }
 
             if (isJsonFile(filePath) && typeof fileContent === "string") {
                 try {
-                    return JSON.parse(fileContent);
-                } catch {
+                    return parseJsonLike(fileContent);
+                } catch (error) {
+                    console.warn(
+                        `[inline-molang-paths] Failed to parse JSON-like file "${filePath}": ${error instanceof Error ? error.message : String(error)}`
+                    );
                     return fileContent;
                 }
             }
